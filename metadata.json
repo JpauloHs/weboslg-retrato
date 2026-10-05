@@ -1,0 +1,6 @@
+{
+  "name": "webOS Portrait Kiosk — Forçador de Modo Retrato para Dashboards",
+  "description": "Aplicativo webOS e exibidor em modo retrato (vertical 9:16) para Smart TVs LG. Força rotação em 90°, 270° ou nativo para dashboards Power BI, Grafana, Looker e métricas corporativas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
