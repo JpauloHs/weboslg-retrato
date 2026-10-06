@@ -1,33 +1,58 @@
-import React, { useState } from 'react';
-import { ExternalLink, RefreshCw, KeyRound, AlertTriangle, ShieldCheck, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { ExternalLink, RefreshCw, KeyRound, AlertTriangle, ShieldCheck, Moon, Sun, CheckCircle } from 'lucide-react';
 
 interface LookerStudioViewerProps {
   url: string;
   useEmbedMode: boolean;
   refreshTrigger: number;
+  lastRefreshTime?: Date;
 }
 
 export const LookerStudioViewer: React.FC<LookerStudioViewerProps> = ({
   url,
   useEmbedMode,
   refreshTrigger,
+  lastRefreshTime,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [showAuthGuide, setShowAuthGuide] = useState(false);
+  const [isRefreshingToast, setIsRefreshingToast] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Format Looker Studio URL to embed mode
-  const getSanitizedUrl = () => {
+  // Generate sanitized base URL
+  const baseUrl = useMemo(() => {
     if (!url) return '';
+    let formatted = url.trim();
     if (useEmbedMode) {
-      if (url.includes('/reporting/') && !url.includes('/embed/reporting/')) {
-        return url.replace('/reporting/', '/embed/reporting/');
+      if (formatted.includes('/reporting/') && !formatted.includes('/embed/reporting/')) {
+        formatted = formatted.replace('/reporting/', '/embed/reporting/');
       }
     }
-    return url;
-  };
+    return formatted;
+  }, [url, useEmbedMode]);
 
-  const finalUrl = getSanitizedUrl();
+  // Compute final iframe URL with cache-busting query parameter on every refreshTrigger!
+  const finalUrl = useMemo(() => {
+    if (!baseUrl) return '';
+    // If refreshTrigger > 0, append timestamp so browser disk cache is bypassed
+    if (refreshTrigger > 0) {
+      const sep = baseUrl.includes('?') ? '&' : '?';
+      return `${baseUrl}${sep}_kiosk_ts=${Date.now()}`;
+    }
+    return baseUrl;
+  }, [baseUrl, refreshTrigger]);
+
+  // Trigger brief visual refresh feedback toast
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      setIsRefreshingToast(true);
+      const timer = setTimeout(() => {
+        setIsRefreshingToast(false);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [refreshTrigger]);
 
   const handleOpenGoogleLogin = () => {
     window.open('https://accounts.google.com/ServiceLogin', '_blank');
@@ -35,7 +60,15 @@ export const LookerStudioViewer: React.FC<LookerStudioViewerProps> = ({
 
   return (
     <div className="relative w-full h-full bg-slate-950 flex flex-col overflow-hidden">
-      {/* Loading Screen */}
+      {/* Visual Refresh Indicator Toast */}
+      {isRefreshingToast && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-600/95 text-white px-4 py-2 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold animate-bounce border border-blue-400/40">
+          <RefreshCw className="w-4 h-4 animate-spin text-white" />
+          <span>Atualizando dados do Looker Studio...</span>
+        </div>
+      )}
+
+      {/* Initial Loading Screen */}
       {isLoading && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-xs text-slate-200">
           <RefreshCw className="w-9 h-9 text-blue-500 animate-spin mb-3.5" />
@@ -45,7 +78,7 @@ export const LookerStudioViewer: React.FC<LookerStudioViewerProps> = ({
           </span>
           <div className="mt-4 flex items-center gap-2 text-[11px] text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Sessão segura webOS TV</span>
+            <span>Sessão segura webOS TV · Modo Anti-Sleep Ativo</span>
           </div>
         </div>
       )}
@@ -53,11 +86,15 @@ export const LookerStudioViewer: React.FC<LookerStudioViewerProps> = ({
       {/* Primary Looker Studio Iframe */}
       {finalUrl ? (
         <iframe
-          key={`looker-frame-${refreshTrigger}-${finalUrl}`}
+          ref={iframeRef}
+          key={`looker-frame-${refreshTrigger}`}
           src={finalUrl}
           title="Google Looker Studio"
           className="w-full h-full border-0 bg-white"
-          onLoad={() => setIsLoading(false)}
+          onLoad={() => {
+            setIsLoading(false);
+            setHasError(false);
+          }}
           onError={() => {
             setIsLoading(false);
             setHasError(true);
@@ -111,9 +148,9 @@ export const LookerStudioViewer: React.FC<LookerStudioViewerProps> = ({
           <KeyRound className="w-3.5 h-3.5" />
         </button>
 
-        {finalUrl && (
+        {baseUrl && (
           <a
-            href={finalUrl}
+            href={baseUrl}
             target="_blank"
             rel="noreferrer noopener"
             className="p-1.5 bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800 shadow transition-colors"

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { LookerKioskSettings, RotationMode } from '../types';
+import { keepAwakeController } from '../utils/keepAwake';
 
 interface PortraitViewportProps {
   settings: LookerKioskSettings;
@@ -12,38 +13,18 @@ export const PortraitViewport: React.FC<PortraitViewportProps> = ({
   children,
   isSimulatedTV = false,
 }) => {
-  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-
-  // Screen Wake Lock (prevents TV standby/sleep if supported by webOS browser)
+  // Start Keep-Awake media heartbeat to prevent webOS TV 30-min screen saver & sleep
   useEffect(() => {
-    const requestWakeLock = async () => {
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLockRef.current = await navigator.wakeLock.request('screen');
-        }
-      } catch {
-        // WakeLock not supported or denied
-      }
-    };
-
-    requestWakeLock();
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        requestWakeLock();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    if (settings.antiSleepActive && !isSimulatedTV) {
+      keepAwakeController.start();
+    } else {
+      keepAwakeController.stop();
+    }
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release().catch(() => {});
-        wakeLockRef.current = null;
-      }
+      keepAwakeController.stop();
     };
-  }, []);
+  }, [settings.antiSleepActive, isSimulatedTV]);
 
   const { rotation, scale, overscanMargin } = settings;
   const zoomFactor = scale / 100;
@@ -94,7 +75,7 @@ export const PortraitViewport: React.FC<PortraitViewportProps> = ({
       };
     }
 
-    // 0° Native Portrait (or when TV is already rotated by system/hardware)
+    // 0° Native Portrait
     return {
       position: 'relative',
       width: '100%',
@@ -111,14 +92,6 @@ export const PortraitViewport: React.FC<PortraitViewportProps> = ({
         padding: overscanMargin > 0 ? `${overscanMargin}px` : undefined,
       }}
     >
-      {/* Invisible canvas heartbeat to prevent webOS screen off */}
-      <canvas
-        className="pointer-events-none opacity-0 absolute w-1 h-1"
-        width={1}
-        height={1}
-        aria-hidden="true"
-      />
-
       <div
         style={getTransformStyles()}
         className="overflow-hidden flex flex-col bg-slate-950 w-full h-full"

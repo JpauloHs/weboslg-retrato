@@ -61,23 +61,17 @@ export const WebOSGuideModal: React.FC<WebOSGuideModalProps> = ({
     }
   };
 
-  const gitCommands = `# 1. Inicializar git local
-git init
+  const userRepoUrl = 'https://github.com/JpauloHs/weboslg-retrato';
+  const userPagesUrl = 'https://jpaulohs.github.io/weboslg-retrato/';
 
-# 2. Adicionar arquivos
+  const gitCommands = `# 1. Adicionar arquivos e correcoes
 git add .
 
-# 3. Criar commit
-git commit -m "feat: webos portrait kiosk looker studio"
+# 2. Criar commit
+git commit -m "fix: github pages workflow e package-lock"
 
-# 4. Definir branch main
-git branch -M main
-
-# 5. Conectar com seu repositorio GitHub
-git remote add origin https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git
-
-# 6. Enviar para o GitHub
-git push -u origin main`;
+# 3. Enviar para seu repositorio
+git push origin main`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">

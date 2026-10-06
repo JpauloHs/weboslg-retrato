@@ -8,11 +8,14 @@ import {
   HelpCircle,
   Tv,
   KeyRound,
+  ShieldCheck,
+  Clock,
 } from 'lucide-react';
 import { LookerKioskSettings, RotationMode } from '../types';
 
 interface RemoteControlHUDProps {
   settings: LookerKioskSettings;
+  secondsUntilRefresh: number;
   onRotateChange: (mode: RotationMode) => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
@@ -22,6 +25,7 @@ interface RemoteControlHUDProps {
 
 export const RemoteControlHUD: React.FC<RemoteControlHUDProps> = ({
   settings,
+  secondsUntilRefresh,
   onRotateChange,
   onRefresh,
   onOpenSettings,
@@ -134,6 +138,13 @@ export const RemoteControlHUD: React.FC<RemoteControlHUDProps> = ({
     window.open('https://accounts.google.com/ServiceLogin', '_blank');
   };
 
+  // Format seconds into MM:SS
+  const formatCountdown = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
   return (
     <div
       className={`fixed inset-0 pointer-events-none z-40 transition-opacity duration-500 ${
@@ -153,21 +164,41 @@ export const RemoteControlHUD: React.FC<RemoteControlHUDProps> = ({
               <span className="text-xs text-slate-500">·</span>
               <span className="text-xs text-emerald-400 font-medium">Google Looker Studio</span>
             </div>
-            <h2 className="text-sm font-semibold text-white tracking-tight leading-none mt-0.5">
-              Dashboard Corporativo 9:16
-            </h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <h2 className="text-sm font-semibold text-white tracking-tight leading-none">
+                Painel TV 9:16
+              </h2>
+              {settings.antiSleepActive && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Anti-Sleep 24/7 Ativo
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Center: Rotation Button */}
-        <button
-          onClick={cycleRotation}
-          className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-xs font-medium text-slate-200 border border-slate-700/70 rounded-lg shadow transition-colors cursor-pointer"
-          title="Alternar rotação (90° / 270° / 0°)"
-        >
-          <RotateCw className="w-3.5 h-3.5 text-blue-400" />
-          <span>{getRotationLabel(settings.rotation)}</span>
-        </button>
+        {/* Center: Countdown and Next Refresh */}
+        <div className="hidden lg:flex items-center gap-3 bg-slate-900/80 px-3.5 py-1.5 rounded-xl border border-slate-800">
+          <button
+            onClick={cycleRotation}
+            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
+            title="Alternar rotação"
+          >
+            <RotateCw className="w-3.5 h-3.5 text-blue-400" />
+            <span>{getRotationLabel(settings.rotation)}</span>
+          </button>
+
+          {settings.showCountdown && settings.autoRefreshMinutes > 0 && (
+            <>
+              <div className="h-4 w-px bg-slate-800" />
+              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400" title="Tempo até o próximo recarregamento de dados">
+                <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Atualiza em: <strong className="text-cyan-300 tabular-nums">{formatCountdown(secondsUntilRefresh)}</strong></span>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Right Actions & Clock */}
         <div className="flex items-center gap-2">
@@ -183,8 +214,17 @@ export const RemoteControlHUD: React.FC<RemoteControlHUDProps> = ({
           )}
 
           <button
+            onClick={onRefresh}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow transition-colors cursor-pointer"
+            title="Forçar recarregamento de dados agora (Botão Verde do controle)"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Atualizar Agora</span>
+          </button>
+
+          <button
             onClick={handleOpenGoogleLogin}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-emerald-400 border border-emerald-800/60 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-emerald-400 border border-emerald-800/60 rounded-lg text-xs font-medium transition-colors cursor-pointer"
             title="Fazer Login na Conta Google na TV para liberar acesso"
           >
             <KeyRound className="w-3.5 h-3.5" />
@@ -233,10 +273,10 @@ export const RemoteControlHUD: React.FC<RemoteControlHUDProps> = ({
       <footer className="pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-slate-900/95 border border-slate-800/90 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 text-slate-200 select-none">
         <button
           onClick={onRefresh}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium rounded-xl transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
           title="Recarregar dados do Looker (Botão Verde do Controle)"
         >
-          <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+          <RefreshCw className="w-3.5 h-3.5" />
           <span>Atualizar Dados</span>
         </button>
 
@@ -256,7 +296,7 @@ export const RemoteControlHUD: React.FC<RemoteControlHUDProps> = ({
         <button
           onClick={onOpenSettings}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium rounded-xl transition-colors cursor-pointer"
-          title="Ajustar Margem / Zoom"
+          title="Ajustar Margem / Zoom / Anti-Sleep"
         >
           <Settings className="w-3.5 h-3.5 text-slate-400" />
           <span>Ajustar Tela</span>
@@ -265,7 +305,7 @@ export const RemoteControlHUD: React.FC<RemoteControlHUDProps> = ({
 
       {/* Remote Control Key Hints (Discreet indicator at bottom left) */}
       <div className="pointer-events-auto absolute bottom-4 left-4 hidden xl:flex items-center gap-2 text-[10px] font-mono text-slate-500 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800/80">
-        <span className="text-emerald-400 font-bold">[Verde]</span> Recarregar
+        <span className="text-emerald-400 font-bold">[Verde]</span> Atualizar
         <span>·</span>
         <span className="text-amber-400 font-bold">[Amarelo]</span> Rotação
         <span>·</span>
