@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LookerKioskSettings, RotationMode } from './types';
 import { DEFAULT_LOOKER_SETTINGS } from './config/kioskConfig';
 import { PortraitViewport } from './components/PortraitViewport';
@@ -12,7 +12,7 @@ import { RemoteControlHUD } from './components/RemoteControlHUD';
 import { SettingsModal } from './components/SettingsModal';
 import { WebOSGuideModal } from './components/WebOSGuideModal';
 import { TVRemoteSimulator } from './components/TVRemoteSimulator';
-import { RotateCw, Tv, HelpCircle, Settings, RefreshCw, KeyRound } from 'lucide-react';
+import { RotateCw, Tv, HelpCircle, Settings, RefreshCw } from 'lucide-react';
 
 export default function App() {
   // Load settings from localStorage or URL query params
@@ -21,7 +21,12 @@ export default function App() {
       const saved = localStorage.getItem('looker_webos_settings');
       let base: LookerKioskSettings = saved ? JSON.parse(saved) : DEFAULT_LOOKER_SETTINGS;
 
-      // URL query overrides (e.g. ?rotation=90&tv=1)
+      // Ensure new antiSleep and countdown fields are defaulted if old state was loaded
+      if (typeof base.antiSleepActive !== 'boolean') base.antiSleepActive = true;
+      if (typeof base.showCountdown !== 'boolean') base.showCountdown = true;
+      if (!base.autoRefreshMinutes || base.autoRefreshMinutes <= 0) base.autoRefreshMinutes = 5;
+
+      // URL query overrides (e.g. ?rotation=270&tv=1)
       const params = new URLSearchParams(window.location.search);
       const urlRotation = params.get('rotation');
       if (urlRotation && ['0', '90', '180', '270'].includes(urlRotation)) {
@@ -38,6 +43,9 @@ export default function App() {
   });
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(
+    (settings.autoRefreshMinutes || 5) * 60
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
@@ -55,23 +63,38 @@ export default function App() {
   }, []);
 
   const handleRotateCycle = useCallback(() => {
-    const sequence: RotationMode[] = ['90', '270', '0', '180'];
+    const sequence: RotationMode[] = ['270', '90', '0', '180'];
     const currIdx = sequence.indexOf(settings.rotation);
     const nextMode = sequence[(currIdx + 1) % sequence.length];
     setSettings((prev) => ({ ...prev, rotation: nextMode }));
   }, [settings.rotation]);
 
+  // Force cache-busting refresh
   const handleRefresh = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1);
-  }, []);
+    setSecondsUntilRefresh((settings.autoRefreshMinutes || 5) * 60);
+  }, [settings.autoRefreshMinutes]);
 
-  // Preventative Memory Refresh Timer (keeps long-running webOS TV stable)
+  // Reset countdown whenever autoRefreshMinutes setting changes
+  useEffect(() => {
+    setSecondsUntilRefresh((settings.autoRefreshMinutes || 5) * 60);
+  }, [settings.autoRefreshMinutes]);
+
+  // Active Countdown & Auto-Refresh Timer Loop (1-second precision)
   useEffect(() => {
     if (settings.autoRefreshMinutes <= 0) return;
-    const intervalMs = settings.autoRefreshMinutes * 60 * 1000;
+
     const timer = setInterval(() => {
-      setRefreshTrigger((prev) => prev + 1);
-    }, intervalMs);
+      setSecondsUntilRefresh((prev) => {
+        if (prev <= 1) {
+          // Trigger forced cache-busting refresh!
+          setRefreshTrigger((curr) => curr + 1);
+          return (settings.autoRefreshMinutes || 5) * 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     return () => clearInterval(timer);
   }, [settings.autoRefreshMinutes]);
 
@@ -157,7 +180,7 @@ export default function App() {
                   </span>
                 </div>
                 <h1 className="text-xs text-slate-400 font-medium">
-                  Pré-visualização da TV LG instalada verticalmente com o Looker Studio
+                  Pré-visualização da TV LG instalada verticalmente com Looker Studio
                 </h1>
               </div>
             </div>
@@ -174,11 +197,11 @@ export default function App() {
 
               <button
                 onClick={handleRefresh}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition-colors cursor-pointer"
-                title="Recarregar Dados"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow transition-colors cursor-pointer"
+                title="Forçar recarregamento de dados agora"
               >
-                <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Recarregar</span>
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Atualizar</span>
               </button>
 
               <button
@@ -268,6 +291,7 @@ export default function App() {
           {/* Heads-Up Remote HUD & Controls */}
           <RemoteControlHUD
             settings={settings}
+            secondsUntilRefresh={secondsUntilRefresh}
             onRotateChange={handleRotateChange}
             onRefresh={handleRefresh}
             onOpenSettings={() => setIsSettingsOpen(true)}
@@ -284,6 +308,7 @@ export default function App() {
         settings={settings}
         onUpdateSettings={setSettings}
         onOpenGuide={() => setIsGuideOpen(true)}
+        onForceRefresh={handleRefresh}
       />
 
       {/* webOS Deployment Guide Modal */}

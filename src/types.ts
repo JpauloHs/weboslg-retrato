@@ -5,8 +5,10 @@ export interface LookerKioskSettings {
   rotation: RotationMode;
   scale: number; // Zoom level 80% to 130%
   overscanMargin: number; // TV bezel safe area in px (0 - 50)
-  autoRefreshMinutes: number; // Preventative reload interval (e.g. 15 min)
+  autoRefreshMinutes: number; // Auto-reload interval (1, 2, 5, 10, 15, 30 min)
+  antiSleepActive: boolean; // Continuous media heartbeat preventing TV 30-min sleep
   showClock: boolean;
+  showCountdown: boolean; // Show timer until next refresh
   autoHideControls: boolean;
   autoHideDelaySeconds: number;
   tvSimulatorMode: boolean; // Virtual TV frame for desktop preview
